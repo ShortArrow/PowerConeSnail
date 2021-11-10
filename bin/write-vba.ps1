@@ -2,14 +2,38 @@ using namespace System.Management.Automation
 using namespace System.Collections.Generic
 using namespace System.Runtime.InteropServices
 using namespace Microsoft.Office.Interop.Excel
+using namespace Microsoft.Vbe.Interop
+
+param (
+    [string]$SrcFile = "src/main.ps1",
+    [string]$DistFile = "build/ExecutePwsh.xlsm"
+)
+# [Reflection.Assembly]::LoadWithPartialName("Microsoft.Vbe.Interop") | Out-Null
+# Add-Type -AssemblyName Microsoft.Vbe.Interop
+
+@(
+    "C:\Windows\assembly\GAC_MSIL\Microsoft.VisualBasic\*\Microsoft.VisualBasic.dll"
+    "C:\Windows\assembly\GAC_MSIL\office\*\OFFICE.DLL"
+    "C:\Windows\assembly\GAC_MSIL\Microsoft.Vbe.Interop\*\Microsoft.Vbe.Interop.dll"
+    "C:\Windows\assembly\GAC_MSIL\Microsoft.Office.Interop.Excel\*\Microsoft.Office.Interop.Excel.dll"
+).ForEach{
+    Add-Type -path $_
+}
+
+
+# enum CodeTypes {
+#     ClassModule = [Microsoft.Vbe.Interop.vbext_ComponentType]::vbext_ct_ClassModule
+#     StdModule = [Microsoft.Vbe.Interop.vbext_ComponentType]::vbext_ct_StdModule
+# }
 
 function Write-Modules {
     param(
-        [string]$fileName = "build/ExecutePwsh.xlsm",
-        [string]$ClassDir = "src/Classes",
-        [string]$ModuleDir = "src/Modules"
+        [string]$Dist = "build/ExecutePwsh.xlsm",
+        [string]$ClassDir = "bin/Classes",
+        [string]$ModuleDir = "bin/Modules",
+        [string]$Src = "src/main.ps1"
     )
-    $filePath = Join-Path $pwd $fileName  
+    $filePath = Join-Path $pwd $Dist  
     $excel = New-Object -ComObject Excel.Application
 
     [ExcelSecurityRegistry]$excelRegistry = [ExcelSecurityRegistry]::new()
@@ -17,8 +41,10 @@ function Write-Modules {
     
     $workbook = $excel.Workbooks.Open($filePath)
     
-    Write-Module -workbook $workbook -srcPath "src/Classes/PayloadCreater.vb" -codetype vbext_ct_ClassModule
-    Write-Module -workbook $workbook -srcPath "src/Modules/Module1.vb" -codetype vbext_ct_StdModule
+    . bin\build-module.ps1
+    Build-Vba -sourceFilename "src/main.ps1" -temporaryFilename "\temp.ps1"
+    Write-Module -workbook $workbook -srcPath "bin/Classes/PayloadCreater.vb" -codetype vbext_ct_ClassModule
+    Write-Module -workbook $workbook -srcPath "bin/Modules/Module1.vb" -codetype vbext_ct_StdModule
     
     $workbook.Save()
     $excel.Quit()
@@ -111,4 +137,4 @@ function Get-ExcelRegistryRoot {
     return $officeRoot + ("{0:0.0}\" -f $highest) + $securityPath
 }
 
-Write-Modules -fileName build/ExecutePwsh.xlsm
+Write-Modules -Dist $DistFile -Src $SrcFile

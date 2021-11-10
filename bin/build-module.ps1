@@ -1,6 +1,6 @@
 function Build-Vba {
     param (
-        [string]$sourceFilename = "./main.ps1",
+        [string]$sourceFilename = "main.ps1",
         [string]$temporaryFilename = "\temp.ps1"
     )
     
@@ -28,6 +28,5 @@ function Build-Vba {
     foreach ($item in $codelist) {
         $Code += $item + "`n"
     }
-    $Code | Out-File -FilePath "src/Classes/PayloadCreater.vb"
+    $Code | Out-File -FilePath "bin/Classes/PayloadCreater.vb"
 }
-Build-Vba -sourceFilename "./src/ps/main.ps1" -temporaryFilename "\temp.ps1"
