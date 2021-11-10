@@ -72,7 +72,7 @@ function Write-Module {
 class ExcelSecurityRegistry {
     [int]$defaultAccessVBOM
     [int]$defaultVBAWarnings
-    [string]$excelRegistryPath = "HKCU:\Software\Microsoft\Office\15.0\excel\Security"
+    [string]$excelRegistryPath
     [void]SetWritable() {
         New-ItemProperty -Path $this.excelRegistryPath -Name `
             AccessVBOM -Value 1 -Force | Out-Null
@@ -86,6 +86,7 @@ class ExcelSecurityRegistry {
             VBAWarnings -Value $this.defaultVBAWarnings -Force | Out-Null
     }
     ExcelSecurityRegistry() {
+        $this.excelRegistryPath = Get-ExcelRegistryRoot
         $this.defaultAccessVBOM = (Get-ItemProperty -Path $this.excelRegistryPath).AccessVBOM
         $this.defaultVBAWarnings = (Get-ItemProperty -Path $this.excelRegistryPath).VBAWarnings
     }
@@ -109,7 +110,5 @@ function Get-ExcelRegistryRoot {
 
     return $officeRoot + ("{0:0.0}\" -f $highest) + $securityPath
 }
-
-Get-ExcelRegistryRoot
 
 Write-Modules -fileName build/ExecutePwsh.xlsm
