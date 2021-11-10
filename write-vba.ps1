@@ -91,4 +91,25 @@ class ExcelSecurityRegistry {
     }
 }
 
+function Get-ExcelRegistryRoot {
+    [OutputType([string])]
+    param ()
+    $officeRoot = "HKCU:\Software\Microsoft\Office\"
+    $securityPath = "excel\Security"
+    $list = Get-ChildItem $officeRoot
+    [double]$highest = 0
+    foreach ($item in $list) {
+        [double]$returnedInt = 0
+        if ([double]::TryParse((Split-Path $item -Leaf), [ref]$returnedInt)) {
+            if (($highest -lt $returnedInt) -and (Test-Path (Join-Path $item.PSPath $securityPath))) {
+                $highest = $returnedInt
+            }
+        }
+    }
+
+    return $officeRoot + ("{0:0.0}\" -f $highest) + $securityPath
+}
+
+Get-ExcelRegistryRoot
+
 Write-Modules -fileName build/ExecutePwsh.xlsm
