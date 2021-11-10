@@ -3,62 +3,68 @@ using namespace System.Collections.Generic
 using namespace System.Runtime.InteropServices
 using namespace Microsoft.Office.Interop.Excel
 
-# VBAのEnumを使うためにアセンブリをロード
-# Powershell 7.1ではアセンブリ名で見つけることが出来なかったのでPathで指定
-foreach ($item in @(
-        "C:\Windows\assembly\GAC_MSIL\Microsoft.VisualBasic\*\Microsoft.VisualBasic.dll"
-        "C:\Windows\assembly\GAC_MSIL\office\*\OFFICE.DLL"
-        "C:\Windows\assembly\GAC_MSIL\Microsoft.Vbe.Interop\*\Microsoft.Vbe.Interop.dll"
-        "C:\Windows\assembly\GAC_MSIL\Microsoft.Office.Interop.Excel\*\Microsoft.Office.Interop.Excel.dll"
-    )) {
-    Add-Type -Path $item
-}
-
-# COMObjectに拡張メソッドを追加
-Update-TypeData -TypeName System.__ComObject -MemberType ScriptMethod -MemberName Tee -Value {
-    param(
-        [Stack[WeakReference]]
-        $stack
-    )
-    $stack.Push([WeakReference]::new($this))
-
-    Write-Output $this
-}
-
-# Comを解放するために使う弱参照のスタック
-$refs = [Stack[WeakReference]]::new()
-
 function CreateModule {
     param(
-        [string]$fileName
+        [string]$fileName = "build/ExecutePwsh.xlsm",
+        [string]$ClassDir = "src/Classes",
+        [string]$ModuleDir = "src/Modules"
     )
     $filePath = Join-Path $pwd $fileName  
-    $excel = New-Object -ComObject Excel.Application  
-    [string]$ModuleName = "PayloadCreater"
-    [bool]$existModuleName = $false
-    [string[]]$codeList = Get-Content "src/Classes/PayloadCreater.vb"
-    [string]$Code = ""
-    foreach ($item in $codelist) {
-        $Code += $item + "`n"
+    $excel = New-Object -ComObject Excel.Application
+
+    function Write-Module {
+        param (
+            [Microsoft.Vbe.Interop.vbext_ComponentType]
+            $codetype,
+            [string]
+            $srcPath,
+            [System.__ComObject]
+            $workbook
+        )
+        
+        [string[]]$codeList = Get-Content $srcPath
+        [string]$Code = ""
+        foreach ($item in $codelist) {
+            $Code += $item + "`n"
+        }
+        
+        [string]$ModuleName = Split-Path $srcPath -LeafBase
+        [bool]$existModuleName = $false
+        foreach ($item in $workbook.VBProject.VBComponents) {
+            if ($item.Name -eq $ModuleName) {
+                $existModuleName = $true
+            }
+        }
+        if ($existModuleName) {
+            $workbook.VBProject.VBComponents.Remove($workbook.VBProject.VBComponents.Item($ModuleName))
+        }
+        $VBComponent = $workbook.VBProject.VBComponents.Add($codetype)
+        $VBComponent.Name = $ModuleName
+        $VBComponent.CodeModule.AddFromString($Code)
     }
 
     [ExcelSecurityRegistry]$excelRegistry = [ExcelSecurityRegistry]::new()
     $excelRegistry.SetWritable()
-
+    
     $workbook = $excel.Workbooks.Open($filePath)
-    foreach ($item in $workbook.VBProject.VBComponents) {
-        if ($item.Name -eq $ModuleName) {
-            $existModuleName = $true
-        }
-    }
-    if ($existModuleName) {
-        $workbook.VBProject.VBComponents.Remove($workbook.VBProject.VBComponents.Item($ModuleName))
-    }
-    $VBComponent = $workbook.VBProject.VBComponents.Add([Microsoft.Vbe.Interop.vbext_ComponentType]::vbext_ct_ClassModule)
-    $VBComponent.Name = $ModuleName
-    $VBComponent.CodeModule.AddFromString($Code)
+    
+    Write-Module -workbook $workbook -srcPath "src/Classes/PayloadCreater.vb" -codetype vbext_ct_ClassModule
+    Write-Module -workbook $workbook -srcPath "src/Modules/Module1.vb" -codetype vbext_ct_StdModule
+    
     $workbook.Save()
     $excel.Quit()
+
+    # Clear variavles referencing __ComObject(as same $val=$null)
+    # In VBA as same as set `Nothing`
+    Get-Variable | Where-Object Value -is [__ComObject] | Clear-Variable
+
+    # force GC
+    [gc]::Collect()
+    [gc]::WaitForPendingFinalizers()
+
+    # Cleanup auto-variable
+    1 | ForEach-Object { $_ } > $null
+    [gc]::Collect()
     
     $excelRegistry.SetToBefore()
 }
@@ -85,40 +91,4 @@ class ExcelSecurityRegistry {
     }
 }
 
-
 CreateModule -fileName build/ExecutePwsh.xlsm
-
-While ($refs.Count) {
-    # スタックから弱参照を取得
-    $comRef = $refs.Pop()
-
-    # 解放するCOMを参照してる変数を全て取得
-    $comVar = (Get-Variable).where{ [object]::ReferenceEquals($comRef.Target, $_.Value) }
-
-    # Applicationオブジェクトであるかの判定
-    $isApp = $comRef.Target -is [Microsoft.Office.Interop.Excel.Application]
-
-    # アプリケーションの終了前にガベージ コレクトを強制
-    if ($isApp) {
-        [System.GC]::Collect()
-        [System.GC]::WaitForPendingFinalizers()
-        [System.GC]::Collect()
-        $comRef.Target.Quit()
-    }
-
-    # COMObjectの解放
-    # ※正しく動作していればApplicationオブジェクトが解放された瞬間にExcelが終了する
-    while ([Marshal]::ReleaseComObject($comRef.Target)) { }
-    $comRef.Target = $null
-
-    # 変数を削除
-    $comVar | Remove-Variable
-    Remove-Variable comRef
-
-    # Application オブジェクトのガベージ コレクトを強制
-    if ($isApp) {
-        [System.GC]::Collect()
-        [System.GC]::WaitForPendingFinalizers()
-        [System.GC]::Collect()
-    }
-}
