@@ -3,7 +3,7 @@ using namespace System.Collections.Generic
 using namespace System.Runtime.InteropServices
 using namespace Microsoft.Office.Interop.Excel
 
-function CreateModule {
+function Write-Modules {
     param(
         [string]$fileName = "build/ExecutePwsh.xlsm",
         [string]$ClassDir = "src/Classes",
@@ -11,37 +11,6 @@ function CreateModule {
     )
     $filePath = Join-Path $pwd $fileName  
     $excel = New-Object -ComObject Excel.Application
-
-    function Write-Module {
-        param (
-            [Microsoft.Vbe.Interop.vbext_ComponentType]
-            $codetype,
-            [string]
-            $srcPath,
-            [System.__ComObject]
-            $workbook
-        )
-        
-        [string[]]$codeList = Get-Content $srcPath
-        [string]$Code = ""
-        foreach ($item in $codelist) {
-            $Code += $item + "`n"
-        }
-        
-        [string]$ModuleName = Split-Path $srcPath -LeafBase
-        [bool]$existModuleName = $false
-        foreach ($item in $workbook.VBProject.VBComponents) {
-            if ($item.Name -eq $ModuleName) {
-                $existModuleName = $true
-            }
-        }
-        if ($existModuleName) {
-            $workbook.VBProject.VBComponents.Remove($workbook.VBProject.VBComponents.Item($ModuleName))
-        }
-        $VBComponent = $workbook.VBProject.VBComponents.Add($codetype)
-        $VBComponent.Name = $ModuleName
-        $VBComponent.CodeModule.AddFromString($Code)
-    }
 
     [ExcelSecurityRegistry]$excelRegistry = [ExcelSecurityRegistry]::new()
     $excelRegistry.SetWritable()
@@ -69,6 +38,37 @@ function CreateModule {
     $excelRegistry.SetToBefore()
 }
 
+function Write-Module {
+    param (
+        [Microsoft.Vbe.Interop.vbext_ComponentType]
+        $codetype,
+        [string]
+        $srcPath,
+        [System.__ComObject]
+        $workbook
+    )
+    
+    [string[]]$codeList = Get-Content $srcPath
+    [string]$Code = ""
+    foreach ($item in $codelist) {
+        $Code += $item + "`n"
+    }
+    
+    [string]$ModuleName = Split-Path $srcPath -LeafBase
+    [bool]$existModuleName = $false
+    foreach ($item in $workbook.VBProject.VBComponents) {
+        if ($item.Name -eq $ModuleName) {
+            $existModuleName = $true
+        }
+    }
+    if ($existModuleName) {
+        $workbook.VBProject.VBComponents.Remove($workbook.VBProject.VBComponents.Item($ModuleName))
+    }
+    $VBComponent = $workbook.VBProject.VBComponents.Add($codetype)
+    $VBComponent.Name = $ModuleName
+    $VBComponent.CodeModule.AddFromString($Code)
+}
+
 class ExcelSecurityRegistry {
     [int]$defaultAccessVBOM
     [int]$defaultVBAWarnings
@@ -91,4 +91,4 @@ class ExcelSecurityRegistry {
     }
 }
 
-CreateModule -fileName build/ExecutePwsh.xlsm
+Write-Modules -fileName build/ExecutePwsh.xlsm
