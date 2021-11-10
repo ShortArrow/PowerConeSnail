@@ -10,10 +10,6 @@ foreach ($item in @(
         "C:\Windows\assembly\GAC_MSIL\office\*\OFFICE.DLL"
         "C:\Windows\assembly\GAC_MSIL\Microsoft.Vbe.Interop\*\Microsoft.Vbe.Interop.dll"
         "C:\Windows\assembly\GAC_MSIL\Microsoft.Office.Interop.Excel\*\Microsoft.Office.Interop.Excel.dll"
-        # "Microsoft.VisualBasic"
-        # "office"
-        # "Microsoft.Vbe.Interop"
-        # "Microsoft.Office.Interop.Excel"
     )) {
     Add-Type -Path $item
 }
@@ -40,27 +36,8 @@ function CreateModule {
     $excel = New-Object -ComObject Excel.Application  
     [string]$ModuleName = "PayloadCreater"
     [bool]$existModuleName = $false
-    [string[]]$codeList = Get-Content "./main.ps1"
+    [string[]]$codeList = Get-Content "src/Classes/PayloadCreater.vb"
     [string]$Code = ""
-    $codelistBeforePrint = @(
-        "Static Sub CreatePayload()"
-        "Dim s"
-        "Dim n"
-        "s = Environ(`"TEMP`") + `"\temp.ps1`""
-        "n = FreeFile"
-        "Open s For Output As #n"
-    )
-    $codelistAfterPrint = @(
-        "Close #n"
-        "End Sub"
-    )
-
-    for ($i = 0; $i -lt $codeList.Count; $i++) {
-        $codeList[$i] = ("Print #n, `"" + ($codeList[$i] -replace "`"","`"`"") + "`"")
-    }
-
-    $codeList = $codelistBeforePrint + $codeList + $codelistAfterPrint
-
     foreach ($item in $codelist) {
         $Code += $item + "`n"
     }
@@ -109,7 +86,7 @@ class ExcelSecurityRegistry {
 }
 
 
-CreateModule -fileName .\ExecutePwsh.xlsm
+CreateModule -fileName build/ExecutePwsh.xlsm
 
 While ($refs.Count) {
     # スタックから弱参照を取得
